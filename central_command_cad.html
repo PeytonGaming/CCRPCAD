@@ -1,0 +1,535 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Central Command RP — CAD/MDT</title>
+<style>
+:root{
+  --bg:#0f1724; --card:#0b1220; --accent:#0ea5e9; --muted:#94a3b8; --success:#22c55e;
+  --danger:#f43f5e; --glass:rgba(255,255,255,0.03);
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+}
+*{box-sizing:border-box}
+html,body,#app{height:100%;}
+body{
+  margin:0; background:linear-gradient(180deg,#071024 0%, #071827 60%);
+  color:#e6eef8; -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale;
+}
+.app{
+  display:grid; grid-template-columns:320px 1fr 420px; gap:18px; height:100vh; padding:18px;
+  align-items:start;
+}
+.panel{background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01)); border-radius:12px; padding:14px; box-shadow:0 6px 20px rgba(2,6,23,0.6); border:1px solid rgba(255,255,255,0.03); overflow:auto;}
+.brand{display:flex;gap:12px;align-items:center;margin-bottom:10px}
+.logo{width:44px;height:44px;background:linear-gradient(135deg,var(--accent),#7c3aed);border-radius:8px;display:flex;align-items:center;justify-content:center;font-weight:700;color:#021;box-shadow:0 6px 18px rgba(14,165,233,0.12)}
+.h1{font-size:15px; font-weight:700}
+.h2{font-size:13px;color:var(--muted);margin-top:2px}
+
+/* Left column (units + filters) */
+.left .section{margin-bottom:12px}
+.controls{display:flex;gap:8px;margin-bottom:8px}
+.btn{background:var(--glass);padding:8px 10px;border-radius:8px;border:1px solid rgba(255,255,255,0.03);cursor:pointer;color:inherit}
+.btn.primary{background:linear-gradient(90deg,var(--accent),#7c3aed);color:#021;border:none;box-shadow:0 6px 18px rgba(124,58,237,0.12)}
+.search{display:flex;gap:8px;align-items:center;padding:8px;border-radius:8px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.02)}
+
+/* center main */
+.center .card-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+.table{width:100%;border-collapse:collapse}
+.table th{font-size:12px;text-align:left;color:var(--muted);padding:8px 6px;border-bottom:1px dashed rgba(255,255,255,0.02)}
+.table td{padding:10px 6px;border-bottom:1px dashed rgba(255,255,255,0.02);font-size:13px}
+
+/* right column */
+.right .stat{display:flex;justify-content:space-between;gap:8px;padding:10px;background:rgba(255,255,255,0.01);border-radius:8px;margin-bottom:8px}
+.form-row{display:flex;gap:8px}
+.input, textarea, select{
+  width:100%; padding:8px;border-radius:8px;background:transparent;border:1px solid rgba(255,255,255,0.04);color:inherit;font-size:13px;
+}
+.small{font-size:12px;color:var(--muted)}
+
+/* badges */
+.badge{padding:6px 8px;border-radius:999px;font-size:12px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.02)}
+
+/* status colors */
+.status-available{color:var(--success); font-weight:700}
+.status-enroute{color:#f59e0b;font-weight:700}
+.status-onscene{color:#06b6d4;font-weight:700}
+.status-offline{color:var(--muted);}
+
+/* responsive */
+@media (max-width:1100px){ .app{grid-template-columns:1fr} .right{display:none} }
+.footer{font-size:12px;color:var(--muted);text-align:center;margin-top:8px}
+
+/* small print view */
+@media print{
+  body *{visibility:hidden}
+  #printArea, #printArea *{visibility:visible}
+  #printArea{position:fixed;left:0;top:0;width:100%}
+}
+</style>
+</head>
+<body>
+<div id="app" class="app" role="application" aria-label="Central Command RP CAD">
+
+  <!-- LEFT: Units & Quick dispatch -->
+  <aside class="panel left" style="height:calc(100vh - 36px);">
+    <div class="brand"><div class="logo">CC</div><div><div class="h1">Central Command RP</div><div class="h2">Dispatch • CAD/MDT</div></div></div>
+    <div class="section">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+        <div class="small">Units</div>
+        <button class="btn" onclick="openModal('newUnit')">+ New Unit</button>
+      </div>
+      <div id="unitsList"></div>
+    </div>
+
+    <div class="section">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+        <div class="small">Quick Dispatch</div>
+        <div class="small"><span class="badge" id="activeCallsCount">0 Active</span></div>
+      </div>
+      <div class="search"><input id="quickCallInput" class="input" placeholder="Address / Call Type / Notes" /><button class="btn primary" onclick="createQuickCall()">Dispatch</button></div>
+    </div>
+
+    <div class="section">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><div class="small">Filters</div></div>
+      <div class="form-row"><select id="filterStatus" class="input" onchange="renderUnits()"><option value="">Any Status</option><option value="available">Available</option><option value="enroute">Enroute</option><option value="onscene">On Scene</option><option value="offline">Offline</option></select></div>
+      <div style="margin-top:8px"><input class="input" id="filterText" placeholder="Search unit name or calls" oninput="renderUnits()" /></div>
+    </div>
+
+    <div class="footer">Local storage demo CAD • Data saved locally in your browser.</div>
+  </aside>
+
+  <!-- CENTER: Calls and active incidents -->
+  <main class="panel center" style="height:calc(100vh - 36px);">
+    <div class="card-header"><div><strong>Active Calls</strong><div class="small">Current incidents being handled</div></div><div style="display:flex;gap:8px"><button class="btn" onclick="openModal('newCall')">+ New Call</button><button class="btn" onclick="clearData()">Reset All</button></div></div>
+
+    <div id="callsContainer"></div>
+
+    <hr style="opacity:0.06;margin:14px 0" />
+
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><div><strong>Call Log</strong><div class="small">Past & closed incidents</div></div><div><input id="logSearch" class="input" placeholder="Search logs" oninput="renderLogs()" /></div></div>
+    <div id="callLogContainer"></div>
+
+  </main>
+
+  <!-- RIGHT: Records, Vehicles, BOLOs, Tools -->
+  <aside class="panel right" style="height:calc(100vh - 36px);">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><div><strong>Records & Lookup</strong><div class="small">People, Vehicles, Warrants</div></div>
+      <div><button class="btn" onclick="openModal('newRecord')">+ New Record</button></div></div>
+
+    <div style="margin-bottom:10px">
+      <input id="searchLookup" class="input" placeholder="Search names, plates, or IDs" oninput="renderLookup()" />
+    </div>
+
+    <div id="lookupResults"></div>
+
+    <hr style="opacity:0.06;margin:12px 0" />
+
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><div><strong>BOLOs</strong><div class="small">Be On Lookout</div></div><div><button class="btn" onclick="openModal('newBolo')">+ BOLO</button></div></div>
+    <div id="bolosList"></div>
+
+    <hr style="opacity:0.06;margin:12px 0" />
+
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><div><strong>Tools</strong><div class="small">Utilities</div></div></div>
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <button class="btn" onclick="exportData()">Export JSON</button>
+      <button class="btn" onclick="importDataPrompt()">Import JSON</button>
+      <button class="btn" onclick="printActive()">Print Active Calls</button>
+    </div>
+  </aside>
+
+  <!-- Modals (hidden by default) -->
+  <div id="modals" aria-hidden="true" style="position:fixed;inset:0;display:none;align-items:center;justify-content:center;padding:18px;z-index:1000;">
+    <div id="modalBackdrop" style="position:absolute;inset:0;background:rgba(2,6,23,0.6);backdrop-filter:blur(4px)"></div>
+    <div id="modalBox" class="panel" style="width:760px;max-height:85vh;overflow:auto;position:relative;z-index:2;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><strong id="modalTitle">Modal</strong><button class="btn" onclick="closeModal()">Close</button></div>
+      <div id="modalContent"></div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+/* ----------------------------- Simple local DB ---------------------------- */
+const STORAGE_KEY = "central_command_cad_v1";
+
+const defaults = {
+  units: [
+    { id: 'U1', name:'Unit 1 - Patrol',callsign:'PC-1', status:'available',notes:'Patrol unit' },
+    { id: 'U2', name:'Unit 2 - K9',callsign:'K9-1', status:'offline',notes:'K9 handler' },
+    { id: 'S1', name:'Supervisor 1',callsign:'S-1', status:'enroute',notes:'Supervisor' },
+  ],
+  calls: [
+    /* active calls */
+  ],
+  logs: [],
+  records: [
+    { id:'R1', name:'John Doe', dob:'1990-01-01', notes:'No warrants' },
+  ],
+  vehicles: [
+    { plate:'ABC123', make:'Declasse', model:'Serrano', color:'Matte Black', ownerId:'R1' }
+  ],
+  bolos: [
+    { id:'B1', title:'Stolen Black Sedan', description:'Black Declasse Serrano, plate ABC123', active:true, created:Date.now() }
+  ],
+  settings: { nextCallId: 1 }
+};
+
+function loadDB(){ const raw = localStorage.getItem(STORAGE_KEY); if(!raw){ localStorage.setItem(STORAGE_KEY, JSON.stringify(defaults)); return JSON.parse(JSON.stringify(defaults)); } try { return JSON.parse(raw); } catch(e){ console.error("Load DB failed",e); localStorage.setItem(STORAGE_KEY, JSON.stringify(defaults)); return JSON.parse(JSON.stringify(defaults)); } }
+function saveDB(db){ localStorage.setItem(STORAGE_KEY, JSON.stringify(db)); }
+
+let DB = loadDB();
+
+/* ----------------------------- Utilities ---------------------------- */
+function uid(prefix='ID'){ return prefix + Math.random().toString(36).slice(2,8).toUpperCase(); }
+function nowISO(){ return new Date().toLocaleString(); }
+function openModal(name){ const modal = document.getElementById('modals'); modal.style.display = 'flex'; modal.setAttribute('aria-hidden','false'); renderModalContent(name); }
+function closeModal(){ const modal = document.getElementById('modals'); modal.style.display = 'none'; modal.setAttribute('aria-hidden','true'); document.getElementById('modalContent').innerHTML=''; }
+
+/* ----------------------------- Units ---------------------------- */
+function renderUnits(){
+  const container = document.getElementById('unitsList');
+  container.innerHTML='';
+  const statusFilter = document.getElementById('filterStatus').value;
+  const q = document.getElementById('filterText').value.trim().toLowerCase();
+  DB.units.forEach(u => {
+    if(statusFilter && u.status !== statusFilter) return;
+    if(q && !(u.name.toLowerCase().includes(q) || u.callsign.toLowerCase().includes(q) || (u.notes||'').toLowerCase().includes(q))) return;
+    const el = document.createElement('div');
+    el.style.padding='10px'; el.style.borderRadius='8px'; el.style.marginBottom='8px'; el.style.background='rgba(255,255,255,0.01)';
+    el.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center">
+      <div><div style="font-weight:700">${u.name}</div><div class="small" style="color:var(--muted)">${u.callsign} • ${u.notes||''}</div></div>
+      <div style="text-align:right"><div class="${statusClass(u.status)}">${statusLabel(u.status)}</div><div style="margin-top:8px;display:flex;gap:6px;justify-content:flex-end">
+        <button class="btn" onclick="editUnit('${u.id}')">Edit</button>
+        <button class="btn" onclick="assignUnitPrompt('${u.id}')">Assign</button>
+      </div></div>
+    </div>`;
+    container.appendChild(el);
+  });
+}
+
+function statusLabel(s){ if(s==='available') return 'Available'; if(s==='enroute') return 'Enroute'; if(s==='onscene') return 'On Scene'; return 'Offline' }
+function statusClass(s){ if(s==='available') return 'status-available'; if(s==='enroute') return 'status-enroute'; if(s==='onscene') return 'status-onscene'; return 'status-offline' }
+
+function renderModalContent(name){
+  const content = document.getElementById('modalContent'); const title = document.getElementById('modalTitle');
+  if(name === 'newUnit'){
+    title.innerText='Create New Unit';
+    content.innerHTML = `
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <input id="unitName" class="input" placeholder="Unit name (e.g., Unit 1 - Patrol)">
+        <input id="unitCallsign" class="input" placeholder="Callsign (e.g., PC-1)">
+        <select id="unitStatus" class="input"><option value="available">Available</option><option value="enroute">Enroute</option><option value="onscene">On Scene</option><option value="offline">Offline</option></select>
+        <textarea id="unitNotes" class="input" placeholder="Notes or assignment"></textarea>
+        <div style="display:flex;justify-content:flex-end;gap:8px"><button class="btn" onclick="closeModal()">Cancel</button><button class="btn primary" onclick="createUnit()">Create Unit</button></div>
+      </div>`;
+  } else if(name === 'newCall'){
+    title.innerText='Create New Call';
+    content.innerHTML = `
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <input id="callType" class="input" placeholder="Call Type (e.g., Disturbance)">
+        <input id="callAddress" class="input" placeholder="Address / Location">
+        <select id="callPriority" class="input"><option value="1">Priority 1</option><option value="2">Priority 2</option><option value="3">Priority 3</option></select>
+        <textarea id="callNotes" class="input" placeholder="Details / Notes"></textarea>
+        <div style="display:flex;gap:8px"><div style="flex:1"><input id="assignUnits" class="input" placeholder="Assign units (comma-separated callsigns or IDs)"></div>
+        <div style="width:160px"><input id="callReporter" class="input" placeholder="Reporter name (optional)"></div></div>
+        <div style="display:flex;justify-content:flex-end;gap:8px"><button class="btn" onclick="closeModal()">Cancel</button><button class="btn primary" onclick="createCall()">Create Call</button></div>
+      </div>`;
+  } else if(name === 'newRecord'){
+    title.innerText='Create New Record';
+    content.innerHTML = `
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <input id="recName" class="input" placeholder="Full name">
+        <input id="recDOB" class="input" placeholder="Date of birth (YYYY-MM-DD)">
+        <textarea id="recNotes" class="input" placeholder="Notes / Warrant info"></textarea>
+        <div style="display:flex;gap:8px"><button class="btn" onclick="closeModal()">Cancel</button><button class="btn primary" onclick="createRecord()">Create Record</button></div>
+      </div>`;
+  } else if(name === 'newBolo'){
+    title.innerText='Create BOLO';
+    content.innerHTML = `
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <input id="boloTitle" class="input" placeholder="Title (e.g., Stolen vehicle)">
+        <textarea id="boloDesc" class="input" placeholder="Description, plate, distinguishing marks"></textarea>
+        <div style="display:flex;align-items:center;gap:8px"><label class="small">Active</label><input id="boloActive" type="checkbox" checked></div>
+        <div style="display:flex;justify-content:flex-end;gap:8px"><button class="btn" onclick="closeModal()">Cancel</button><button class="btn primary" onclick="createBolo()">Create BOLO</button></div>
+      </div>`;
+  } else if(name.startsWith('editCall:')){
+    const id = name.split(':')[1];
+    const call = DB.calls.find(c=>c.id===id) || DB.logs.find(c=>c.id===id);
+    if(!call){ content.innerHTML = '<div>Call not found</div>'; return; }
+    title.innerText = `Edit Call ${call.id}`;
+    content.innerHTML = `
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <input id="editCallType" class="input" value="${escapeHTML(call.type||'')}">
+        <input id="editCallAddress" class="input" value="${escapeHTML(call.address||'')}">
+        <select id="editCallPriority" class="input"><option value="1">Priority 1</option><option value="2">Priority 2</option><option value="3">Priority 3</option></select>
+        <textarea id="editCallNotes" class="input">${escapeHTML(call.notes||'')}</textarea>
+        <div style="display:flex;gap:8px"><input id="editCallUnits" class="input" placeholder="Assigned units (comma-separated)" value="${(call.units||[]).join(',')}" /></div>
+        <div style="display:flex;justify-content:flex-end;gap:8px"><button class="btn" onclick="closeModal()">Cancel</button><button class="btn primary" onclick="saveCallEdits('${call.id}')">Save</button></div>
+      </div>`;
+    // set priority value after content inserted
+    setTimeout(()=>{ document.getElementById('editCallPriority').value = call.priority || '2'; },50);
+  } else {
+    title.innerText='Modal';
+    content.innerHTML = `<div>Unknown modal: ${name}</div>`;
+  }
+}
+
+/* helper to prevent injecting HTML */
+function escapeHTML(str){ return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+function createUnit(){
+  const name = document.getElementById('unitName').value.trim();
+  const callsign = document.getElementById('unitCallsign').value.trim();
+  const status = document.getElementById('unitStatus').value;
+  const notes = document.getElementById('unitNotes').value;
+  if(!name || !callsign){ alert('Please provide name and callsign'); return; }
+  DB.units.push({ id: uid('U'), name, callsign, status, notes });
+  saveDB(DB); renderUnits(); closeModal();
+}
+
+function editUnit(id){
+  const u = DB.units.find(x=>x.id===id); if(!u) return alert('Unit not found');
+  openModal('editUnit:'+id);
+  // Render edit modal content
+  const content = document.getElementById('modalContent'); document.getElementById('modalTitle').innerText = 'Edit Unit';
+  content.innerHTML = `
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <input id="editUnitName" class="input" value="${escapeHTML(u.name)}">
+      <input id="editUnitCallsign" class="input" value="${escapeHTML(u.callsign)}">
+      <select id="editUnitStatus" class="input"><option value="available">Available</option><option value="enroute">Enroute</option><option value="onscene">On Scene</option><option value="offline">Offline</option></select>
+      <textarea id="editUnitNotes" class="input">${escapeHTML(u.notes||'')}</textarea>
+      <div style="display:flex;justify-content:space-between;gap:8px"><div style="flex:1"><button class="btn" onclick="deleteUnit('${u.id}')">Delete</button></div><div><button class="btn" onclick="closeModal()">Cancel</button><button class="btn primary" onclick="saveUnitEdits('${u.id}')">Save</button></div></div>
+    </div>`;
+  setTimeout(()=>{ document.getElementById('editUnitStatus').value = u.status; },60);
+}
+
+function saveUnitEdits(id){
+  const u = DB.units.find(x=>x.id===id); if(!u) return;
+  u.name = document.getElementById('editUnitName').value.trim();
+  u.callsign = document.getElementById('editUnitCallsign').value.trim();
+  u.status = document.getElementById('editUnitStatus').value;
+  u.notes = document.getElementById('editUnitNotes').value;
+  saveDB(DB); renderUnits(); closeModal();
+}
+
+function deleteUnit(id){
+  if(!confirm('Delete this unit?')) return;
+  DB.units = DB.units.filter(x=>x.id!==id); saveDB(DB); renderUnits(); closeModal();
+}
+
+/* ----------------------------- Calls ---------------------------- */
+function renderCalls(){
+  const container = document.getElementById('callsContainer'); container.innerHTML='';
+  if(DB.calls.length===0){ container.innerHTML = '<div class="small">No active calls</div>'; updateActiveCount(); return; }
+  DB.calls.forEach(c=>{
+    const el = document.createElement('div'); el.style.marginBottom='10px'; el.style.padding='10px'; el.style.borderRadius='8px'; el.style.background='rgba(255,255,255,0.01)';
+    el.innerHTML = `
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px">
+        <div style="flex:1">
+          <div style="display:flex;gap:10px;align-items:center">
+            <div style="font-weight:700">${escapeHTML(c.type||'Unknown')}</div>
+            <div class="badge">#${c.id}</div>
+            <div class="small">${escapeHTML(c.address||'No Address')}</div>
+            <div style="margin-left:6px;" class="small">Priority ${c.priority||'2'}</div>
+          </div>
+          <div class="small" style="margin-top:6px">${escapeHTML(c.notes||'')}</div>
+          <div style="margin-top:8px" class="small">Assigned: ${(c.units||[]).join(', ') || 'None' }</div>
+        </div>
+        <div style="text-align:right;min-width:160px;display:flex;flex-direction:column;gap:8px">
+          <div class="${statusClass(c.status||'available')}">${statusLabel(c.status||'available')}</div>
+          <div style="display:flex;gap:6px;justify-content:flex-end">
+            <button class="btn" onclick="openModal('editCall:${c.id}')">Edit</button>
+            <button class="btn" onclick="updateCallStatus('${c.id}','enroute')">Enroute</button>
+            <button class="btn" onclick="updateCallStatus('${c.id}','onscene')">On Scene</button>
+            <button class="btn" onclick="closeCall('${c.id}')">Close</button>
+          </div>
+        </div>
+      </div>`;
+    container.appendChild(el);
+  });
+  updateActiveCount();
+}
+
+function updateActiveCount(){ document.getElementById('activeCallsCount').innerText = `${DB.calls.length} Active`; }
+
+function createCall(){
+  const type = document.getElementById('callType').value.trim();
+  const address = document.getElementById('callAddress').value.trim();
+  const priority = document.getElementById('callPriority').value;
+  const notes = document.getElementById('callNotes').value;
+  const unitsText = document.getElementById('assignUnits').value;
+  const reporter = document.getElementById('callReporter').value;
+  if(!type || !address){ alert('Please provide call type and address'); return; }
+  const id = DB.settings.nextCallId++;
+  const units = unitsText.split(',').map(s=>s.trim()).filter(Boolean);
+  const call = { id: String(id), type, address, priority, notes, units, status:'available', created: Date.now(), reporter };
+  DB.calls.push(call); DB.logs.unshift({ ...call, closed:false }); saveDB(DB); renderCalls(); renderLogs(); closeModal();
+}
+
+function createQuickCall(){
+  const q = document.getElementById('quickCallInput').value.trim();
+  if(!q) return alert('Enter address or call details');
+  const id = DB.settings.nextCallId++;
+  const call = { id: String(id), type: 'Quick Call', address: q, priority:'2', notes:q, units:[], status:'available', created:Date.now() };
+  DB.calls.push(call); DB.logs.unshift({ ...call, closed:false }); saveDB(DB); renderCalls(); renderLogs();
+  document.getElementById('quickCallInput').value='';
+}
+
+function assignUnitPrompt(unitId){
+  const u = DB.units.find(x=>x.id===unitId);
+  const cs = prompt('Assign to call ID or press Cancel to change status. Enter "status:<available|enroute|onscene|offline>" to change status. Or enter call ID to assign to that call.');
+  if(!cs) return;
+  if(cs.startsWith('status:')){
+    const s = cs.split(':')[1]; u.status = s; saveDB(DB); renderUnits(); return;
+  }
+  const call = DB.calls.find(c=>c.id===cs);
+  if(!call){ alert('Call ID not found'); return; }
+  call.units.push(u.callsign || u.id); saveDB(DB); renderCalls(); renderUnits();
+}
+
+function updateCallStatus(id,status){
+  const c = DB.calls.find(x=>x.id===id); if(!c) return;
+  c.status = status; saveDB(DB); renderCalls();
+}
+
+function closeCall(id){
+  if(!confirm('Close this call?')) return;
+  const idx = DB.calls.findIndex(x=>x.id===id); if(idx===-1) return;
+  const call = DB.calls.splice(idx,1)[0];
+  call.closedAt = Date.now(); call.closed = true;
+  DB.logs.unshift(call); saveDB(DB); renderCalls(); renderLogs();
+}
+
+function saveCallEdits(id){
+  const call = DB.calls.find(x=>x.id===id) || DB.logs.find(x=>x.id===id);
+  if(!call) return alert('Call not found');
+  call.type = document.getElementById('editCallType').value.trim();
+  call.address = document.getElementById('editCallAddress').value.trim();
+  call.priority = document.getElementById('editCallPriority').value;
+  call.notes = document.getElementById('editCallNotes').value;
+  call.units = document.getElementById('editCallUnits').value.split(',').map(s=>s.trim()).filter(Boolean);
+  saveDB(DB); renderCalls(); renderLogs(); closeModal();
+}
+
+/* ----------------------------- Logs ---------------------------- */
+function renderLogs(){
+  const container = document.getElementById('callLogContainer'); container.innerHTML='';
+  const q = document.getElementById('logSearch').value.trim().toLowerCase();
+  if(DB.logs.length===0){ container.innerHTML = '<div class="small">No logs yet</div>'; return; }
+  DB.logs.forEach(l=>{
+    if(q && !(l.type.toLowerCase().includes(q) || (l.address||'').toLowerCase().includes(q) || (l.notes||'').toLowerCase().includes(q))) return;
+    const el = document.createElement('div'); el.style.padding='8px'; el.style.borderRadius='8px'; el.style.marginBottom='8px'; el.style.background='rgba(255,255,255,0.01)';
+    el.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center"><div><strong>${escapeHTML(l.type)}</strong> <span class="small">#${l.id}</span><div class="small">${escapeHTML(l.address||'')}</div></div><div style="text-align:right"><div class="small">${l.closedAt?new Date(l.closedAt).toLocaleString():''}</div><div style="display:flex;gap:6px;margin-top:6px"><button class="btn" onclick="openModal('editCall:${l.id}')">View</button></div></div></div>`;
+    container.appendChild(el);
+  });
+}
+
+/* ----------------------------- Records & Vehicles ---------------------------- */
+function renderLookup(){
+  const q = document.getElementById('searchLookup').value.trim().toLowerCase();
+  const container = document.getElementById('lookupResults'); container.innerHTML='';
+  const results = [];
+  DB.records.forEach(r=>{ if(!q || r.name.toLowerCase().includes(q) || r.id.toLowerCase().includes(q)) results.push({type:'record', item:r}); });
+  DB.vehicles.forEach(v=>{ if(!q || v.plate.toLowerCase().includes(q) || v.make.toLowerCase().includes(q)) results.push({type:'vehicle', item:v}); });
+  if(results.length===0){ container.innerHTML = '<div class="small">No results</div>'; return; }
+  results.forEach(r=>{
+    const el = document.createElement('div'); el.style.padding='8px'; el.style.borderRadius='8px'; el.style.marginBottom='8px'; el.style.background='rgba(255,255,255,0.01)';
+    if(r.type==='record'){
+      el.innerHTML = `<div style="display:flex;justify-content:space-between"><div><strong>${escapeHTML(r.item.name)}</strong><div class="small">ID: ${r.item.id} • DOB: ${r.item.dob||''}</div></div><div style="text-align:right"><div class="small">${escapeHTML(r.item.notes||'')}</div><div style="display:flex;gap:6px;margin-top:6px"><button class="btn" onclick="viewRecord('${r.item.id}')">View</button></div></div></div>`;
+    } else {
+      el.innerHTML = `<div style="display:flex;justify-content:space-between"><div><strong>${escapeHTML(r.item.plate)}</strong><div class="small">${escapeHTML(r.item.make||'')} ${escapeHTML(r.item.model||'')}</div></div><div style="text-align:right"><div class="small">Owner: ${r.item.ownerId||'Unknown'}</div><div style="display:flex;gap:6px;margin-top:6px"><button class="btn" onclick="viewVehicle('${r.item.plate}')">View</button></div></div></div>`;
+    }
+    container.appendChild(el);
+  });
+}
+
+function createRecord(){
+  const name = document.getElementById('recName').value.trim();
+  const dob = document.getElementById('recDOB').value.trim();
+  const notes = document.getElementById('recNotes').value.trim();
+  if(!name){ alert('Name required'); return; }
+  const id = uid('R');
+  DB.records.push({ id, name, dob, notes });
+  saveDB(DB); closeModal(); renderLookup();
+}
+
+function viewRecord(id){
+  const r = DB.records.find(x=>x.id===id); if(!r) return alert('Not found');
+  openModal('viewRecord:'+id);
+  const content = document.getElementById('modalContent'); document.getElementById('modalTitle').innerText = `Record ${r.name}`;
+  content.innerHTML = `
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <div><strong>Name:</strong> ${escapeHTML(r.name)}</div>
+      <div><strong>ID:</strong> ${r.id}</div>
+      <div><strong>DOB:</strong> ${escapeHTML(r.dob||'')}</div>
+      <div><strong>Notes:</strong><div class="small" style="margin-top:4px">${escapeHTML(r.notes||'')}</div></div>
+      <div style="display:flex;justify-content:flex-end;gap:8px"><button class="btn" onclick="closeModal()">Close</button></div>
+    </div>`;
+}
+
+function viewVehicle(plate){
+  const v = DB.vehicles.find(x=>x.plate===plate); if(!v) return alert('Not found');
+  openModal('viewVehicle:'+plate);
+  const content = document.getElementById('modalContent'); document.getElementById('modalTitle').innerText = `Vehicle ${v.plate}`;
+  const owner = DB.records.find(x=>x.id===v.ownerId);
+  content.innerHTML = `
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <div><strong>Plate:</strong> ${escapeHTML(v.plate)}</div>
+      <div><strong>Make/Model:</strong> ${escapeHTML(v.make)} ${escapeHTML(v.model)}</div>
+      <div><strong>Color:</strong> ${escapeHTML(v.color)}</div>
+      <div><strong>Owner:</strong> ${owner?escapeHTML(owner.name):'Unknown'}</div>
+      <div style="display:flex;justify-content:flex-end;gap:8px"><button class="btn" onclick="closeModal()">Close</button></div>
+    </div>`;
+}
+
+/* ----------------------------- BOLOs ---------------------------- */
+function renderBOLOs(){
+  const container = document.getElementById('bolosList'); container.innerHTML='';
+  DB.bolos.forEach(b=>{
+    const el = document.createElement('div'); el.style.padding='8px'; el.style.borderRadius='8px'; el.style.marginBottom='8px'; el.style.background='rgba(255,255,255,0.01)';
+    el.innerHTML = `
+      <div style="display:flex;justify-content:space-between;align-items:center"><div><strong>${escapeHTML(b.title)}</strong><div class="small">${escapeHTML(b.description||'')}</div></div><div style="text-align:right"><div class="small">${b.active?'<span class=\"badge\">Active</span>':'<span class=\"small\">Inactive</span>'}</div><div style="display:flex;gap:6px;margin-top:6px"><button class="btn" onclick="toggleBolo('${b.id}')">Toggle</button><button class="btn" onclick="deleteBolo('${b.id}')">Delete</button></div></div></div>`;
+    container.appendChild(el);
+  });
+}
+
+function createBolo(){ const title = document.getElementById('boloTitle').value.trim(); const desc = document.getElementById('boloDesc').value.trim(); const active = document.getElementById('boloActive').checked; if(!title) return alert('Title required'); DB.bolos.push({ id: uid('B'), title, description:desc, active, created:Date.now() }); saveDB(DB); renderBOLOs(); closeModal(); }
+function toggleBolo(id){ const b = DB.bolos.find(x=>x.id===id); if(!b) return; b.active = !b.active; saveDB(DB); renderBOLOs(); }
+function deleteBolo(id){ if(!confirm('Delete BOLO?')) return; DB.bolos = DB.bolos.filter(x=>x.id!==id); saveDB(DB); renderBOLOs(); }
+
+/* ----------------------------- Export / Import / Print ---------------------------- */
+function exportData(){
+  const data = JSON.stringify(DB, null, 2);
+  const blob = new Blob([data],{type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href = url; a.download = 'central_command_cad_export.json'; a.click(); URL.revokeObjectURL(url);
+}
+function importDataPrompt(){
+  const input = document.createElement('input'); input.type='file'; input.accept='application/json'; input.onchange = e=>{
+    const f = e.target.files[0]; if(!f) return;
+    const reader = new FileReader(); reader.onload = ev=>{ try { const obj = JSON.parse(ev.target.result); DB = obj; saveDB(DB); renderAll(); alert('Import successful'); } catch(err){ alert('Failed to import: '+err.message); } }; reader.readAsText(f);
+  }; input.click();
+}
+function printActive(){
+  const printArea = document.createElement('div'); printArea.id='printArea';
+  let html = `<h2>Central Command RP — Active Calls</h2><div>`;
+  DB.calls.forEach(c=>{ html += `<div style="margin-bottom:8px"><strong>${escapeHTML(c.type)}</strong> #${c.id} — ${escapeHTML(c.address||'')} — Priority ${c.priority}<div>${escapeHTML(c.notes||'')}</div></div>`; });
+  html += `</div>`;
+  printArea.innerHTML = html; document.body.appendChild(printArea); window.print(); setTimeout(()=>printArea.remove(),500);
+}
+
+/* ----------------------------- Misc / Persistence ---------------------------- */
+function clearData(){ if(!confirm('Reset all local CAD data to defaults?')) return; localStorage.removeItem(STORAGE_KEY); DB = loadDB(); renderAll(); }
+function renderAll(){ renderUnits(); renderCalls(); renderLogs(); renderLookup(); renderBOLOs(); }
+window.addEventListener('load', ()=>{ renderAll(); });
+
+// Initialize some handlers for modals that refer to special view modals
+document.addEventListener('click', function(e){
+  // support opening built-in view modals created dynamically
+  // nothing for now
+});
+
+</script>
+</body>
+</html>
